@@ -14,16 +14,6 @@
   .sub { color:var(--dim); font-size:13px; margin-bottom:28px; }
   .stale { color:#fbbf24; }
   .warn { background:#3a2f0b; color:#fbbf24; border:1px solid #6b5514; border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:16px; }
-  h2 { font-size:13px; letter-spacing:.08em; margin:40px 0 10px; }
-  h2:first-of-type { margin-top:0; }
-  h2 small { color:var(--dim); font-weight:400; letter-spacing:0; margin-left:8px; }
-  .ok { color:var(--dim); font-size:14px; }
-  .stuck { list-style:none; margin:0; padding:0; }
-  .stuck li { display:flex; gap:12px; align-items:baseline; padding:10px 0; border-top:1px solid var(--line); font-size:14px; }
-  .stuck .d { color:var(--red); font-weight:700; font-variant-numeric:tabular-nums; width:38px; flex:none; text-align:right; }
-  .stuck .b { width:58px; flex:none; }
-  .stuck .t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .stuck .w { color:var(--dim); flex:none; text-align:right; }
   table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; table-layout:fixed; }
   th { color:var(--dim); font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:.06em; padding:0 12px 10px; text-align:right; }
   th:first-child, td:first-child { text-align:left; padding-left:0; width:28%; }
@@ -32,14 +22,11 @@
   td small { display:block; color:var(--dim); font-weight:400; font-size:12px; }
   td small.late { color:var(--red); }
   .zero { color:#4a4e58; }
-  .line { font-size:14px; padding:10px 0; border-top:1px solid var(--line); display:flex; justify-content:space-between; }
-  .line span:last-child { color:var(--dim); }
-  .line span.late { color:var(--red); }
   a { color:var(--acc); text-decoration:none; }
   a:hover { text-decoration:underline; }
   .foot { margin-top:28px; font-size:14px; }
   .note { color:var(--dim); font-size:12px; margin-top:12px; }
-  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; } .stuck .w { display:none; } }
+  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; } }
 </style>
 </head>
 <body>
@@ -48,19 +35,12 @@
   <div class="sub" id="sub">loading…</div>
   <div class="warn" id="warn" hidden></div>
 
-  <h2 id="stuckH">SITTING 4+ DAYS</h2>
-  <div id="stuck"></div>
-
-  <h2>BY EDITOR</h2>
   <table>
     <thead><tr><th></th><th>Not started</th><th>In progress</th><th>Revisions</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
 
-  <h2>AFTER EDITING</h2>
-  <div id="after"></div>
-
-  <div class="note" id="note"></div>
+  <div class="note">Oldest = days in that status. Red = 4+ days.</div>
   <div class="foot"><a id="asana" href="#" target="_blank" rel="noopener">Open the roadmap in Asana →</a></div>
 </main>
 <script>
@@ -78,27 +58,18 @@ var DAY = 86400000;
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function age(r, now) { return r.s ? (now - Date.parse(r.s)) / DAY : 0; }
 function dd(x) { return x < 1 ? 'today' : Math.floor(x) + 'd'; }
-var LABEL = { ns: 'Not started', prog: 'In progress', rev: 'In revisions', review: 'Pending review', launch: 'Ready for launch' };
 
 function draw(D) {
-  var now = Date.now(), lim = D.stale || 4, link = function (r) { return D.asana + r.g; };
+  var now = Date.now(), lim = D.stale || 4;
   var mins = Math.round((now - Date.parse(D.at)) / 60000);
-  document.getElementById('sub').innerHTML = D.rows.length + ' batches waiting · <span class="' + (mins > 30 ? 'stale' : '') +
+  var ed = D.rows.filter(function (r) { return r.st === 'ns' || r.st === 'prog' || r.st === 'rev'; }).length;
+  document.getElementById('sub').innerHTML = ed + ' batches with editors · <span class="' + (mins > 30 ? 'stale' : '') +
     '">updated ' + (mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + 'h ago') + '</span>';
   var w = document.getElementById('warn');
   w.hidden = !D.pending;
   w.textContent = D.pending ? 'Still reading history for ' + D.pending + ' batches, so some ages are missing. Clears on the next refresh.' : '';
 
-  // 1. Sitting 4+ days, oldest first. Ready-for-launch waits sit in "After editing".
-  var stuck = D.rows.filter(function (r) { return r.st !== 'launch' && age(r, now) >= lim; })
-    .sort(function (a, b) { return age(b, now) - age(a, now); });
-  document.getElementById('stuckH').innerHTML = 'SITTING ' + lim + '+ DAYS' + (stuck.length ? '<small>' + stuck.length + '</small>' : '');
-  document.getElementById('stuck').innerHTML = stuck.length ? '<ul class="stuck">' + stuck.map(function (r) {
-    return '<li><span class="d">' + dd(age(r, now)) + '</span><a class="b" href="' + esc(link(r)) + '" target="_blank" rel="noopener">#' +
-      esc(r.b || '?') + '</a><span class="t">' + esc(r.n) + '</span><span class="w">' + esc(LABEL[r.st]) + ' · ' + esc(r.w) + '</span></li>';
-  }).join('') + '</ul>' : '<div class="ok">Nothing. Everything has moved in the last ' + lim + ' days.</div>';
-
-  // 2. By editor: count + oldest age per stage.
+  // By editor: count + oldest age per stage.
   var by = {};
   D.rows.forEach(function (r) {
     if (r.st !== 'ns' && r.st !== 'prog' && r.st !== 'rev') return;
@@ -118,21 +89,6 @@ function draw(D) {
     return '<tr><td>' + esc(p.name) + '</td>' + cell(p.ns) + cell(p.prog) + cell(p.rev) + '</tr>';
   }).join('');
 
-  // 3. After editing: review by strategist, then the launch queue.
-  var line = function (label, list) {
-    var old = list.length ? Math.max.apply(null, list) : 0;
-    return '<div class="line"><span>' + esc(label) + '  ' + list.length + '</span><span class="' + (old >= lim ? 'late' : '') + '">' +
-      (list.length ? 'oldest ' + dd(old) : '') + '</span></div>';
-  };
-  var rev = {}, launch = [];
-  D.rows.forEach(function (r) {
-    if (r.st === 'review') (rev[r.w] = rev[r.w] || []).push(age(r, now));
-    if (r.st === 'launch') launch.push(age(r, now));
-  });
-  document.getElementById('after').innerHTML =
-    Object.keys(rev).sort().map(function (k) { return line('Pending review · ' + k, rev[k]); }).join('') +
-    line('Ready for launch', launch);
-  document.getElementById('note').textContent = 'Days = time in the current status. Pending review is listed under the batch’s strategist.';
   document.getElementById('asana').href = D.asana.replace(/\/$/, '') + '/board';
 }
 
