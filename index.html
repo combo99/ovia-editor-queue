@@ -26,7 +26,20 @@
   a:hover { text-decoration:underline; }
   .foot { margin-top:28px; font-size:14px; }
   .note { color:var(--dim); font-size:12px; margin-top:12px; }
-  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; } }
+  .views { display:flex; gap:6px; margin-bottom:22px; }
+  .views button, .range button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:8px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  .views button.on, .range button.on { color:var(--fg); border-color:#4a4e58; background:var(--card); }
+  .range { display:flex; gap:6px; margin-bottom:18px; }
+  .ed { margin-bottom:26px; }
+  .ed h2 { display:flex; justify-content:space-between; font-size:15px; margin:0 0 6px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+  .ed h2 span { font-variant-numeric:tabular-nums; }
+  .it { display:grid; grid-template-columns:172px 56px 1fr auto; gap:10px; padding:7px 0; font-size:14px; border-bottom:1px solid #1a1c21; align-items:baseline; }
+  .it .t { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .it .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .it .s { color:var(--dim); font-size:12px; white-space:nowrap; }
+  .tag { color:#c4b5fd; font-size:11px; margin-left:6px; }
+  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; }
+    .it { grid-template-columns:128px 48px 1fr; font-size:13px; } .it .s { display:none; } }
 </style>
 </head>
 <body>
@@ -34,13 +47,23 @@
   <h1>OVIA EDITOR QUEUE</h1>
   <div class="sub" id="sub">loading…</div>
   <div class="warn" id="warn" hidden></div>
+  <div class="views"><button data-v="queue">Queue</button><button data-v="output">Output</button></div>
 
+  <section id="vQueue">
   <table>
     <thead><tr><th></th><th>Not started</th><th>In progress</th><th>Revisions</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
 
   <div class="note">Oldest = days in that status. Red = 4+ days.</div>
+  </section>
+
+  <section id="vOutput" hidden>
+    <div class="range"><button data-r="7">7 days</button><button data-r="30">30 days</button><button data-r="all">All</button></div>
+    <div class="warn" id="owarn" hidden></div>
+    <div id="out"></div>
+    <div class="note">Finished = first move out of In Progress (Pending review or later), credited to whoever had it then. Times are your local time.</div>
+  </section>
   <div class="foot"><a id="asana" href="#" target="_blank" rel="noopener">Open the roadmap in Asana →</a></div>
 </main>
 <script>
@@ -66,7 +89,7 @@ function draw(D) {
   document.getElementById('sub').innerHTML = ed + ' batches with editors · <span class="' + (mins > 30 ? 'stale' : '') +
     '">updated ' + (mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + 'h ago') + '</span>';
   var w = document.getElementById('warn');
-  w.hidden = !D.pending;
+  w.hidden = !D.pending || VIEW === 'output';
   w.textContent = D.pending ? 'Still reading history for ' + D.pending + ' batches, so some ages are missing. Clears on the next refresh.' : '';
 
   // By editor: count + oldest age per stage.
@@ -90,7 +113,56 @@ function draw(D) {
   }).join('');
 
   document.getElementById('asana').href = D.asana.replace(/\/$/, '') + '/board';
+  drawOut(D);
 }
+
+// Output view: every finished batch, by editor, newest first.
+var VIEW = /output/.test(location.hash) ? 'output' : 'queue', RANGE = '7', LAST = null;
+var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function stamp(iso) {
+  var d = new Date(iso), h = d.getHours(), m = d.getMinutes();
+  return WD[d.getDay()] + ' ' + MO[d.getMonth()] + ' ' + d.getDate() + ' · ' + ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m + (h < 12 ? ' am' : ' pm');
+}
+function drawOut(D) {
+  LAST = D;
+  var list = D.out || [], now = Date.now();
+  var w = document.getElementById('owarn');
+  w.hidden = !(D.outPending || !D.out);
+  w.textContent = !D.out ? 'Output data is not in yet. It appears on the next refresh.' :
+    D.outPending ? 'Still reading history for ' + D.outPending + ' finished batches, so the list is incomplete. Clears on the next refresh.' : '';
+  var from = RANGE === 'all' ? 0 : now - (+RANGE) * DAY;
+  var by = {};
+  list.forEach(function (r) {
+    if (Date.parse(r.f) < from) return;
+    (by[r.w] || (by[r.w] = [])).push(r);
+  });
+  var names = Object.keys(by).sort(function (a, b) { return by[b].length - by[a].length || (a < b ? -1 : 1); });
+  var base = D.asana.replace(/\/$/, '') + '/';
+  var total = names.reduce(function (n, k) { return n + by[k].length; }, 0);
+  document.getElementById('out').innerHTML = (names.length ? '' : '<div class="note">Nothing finished in this range.</div>') +
+    names.map(function (k) {
+      return '<div class="ed"><h2>' + esc(k) + '<span>' + by[k].length + '</span></h2>' + by[k].map(function (r) {
+        return '<div class="it"><span class="t">' + (r.c ? 'no history' : stamp(r.f)) + '</span>' +
+          '<a href="' + base + r.g + '" target="_blank" rel="noopener">#' + esc(r.b) + '</a>' +
+          '<span class="nm">' + esc(r.n) + (r.x ? '<span class="tag">bounty</span>' : '') + '</span>' +
+          '<span class="s">' + esc(r.st) + '</span></div>';
+      }).join('') + '</div>';
+    }).join('');
+  document.querySelectorAll('.range button').forEach(function (b) { b.classList.toggle('on', b.dataset.r === RANGE); });
+  if (VIEW === 'output') document.getElementById('sub').innerHTML = total + ' finished ' +
+    (RANGE === 'all' ? 'all time' : 'in the last ' + RANGE + ' days') + ' · ' + document.getElementById('sub').innerHTML.replace(/^.*?·\s*/, '');
+}
+function setView(v) {
+  VIEW = v;
+  document.getElementById('vQueue').hidden = v !== 'queue';
+  document.getElementById('vOutput').hidden = v !== 'output';
+  document.querySelectorAll('.views button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === v); });
+  history.replaceState(null, '', v === 'output' ? '#output' : location.pathname);
+  if (LAST) draw(LAST);
+}
+document.querySelectorAll('.views button').forEach(function (b) { b.onclick = function () { setView(b.dataset.v); }; });
+document.querySelectorAll('.range button').forEach(function (b) { b.onclick = function () { RANGE = b.dataset.r; if (LAST) draw(LAST); }; });
+setView(VIEW);
 
 function load() {
   // Data lives on the repo's `data` branch (a main commit every 10 minutes breaks Pages builds).
