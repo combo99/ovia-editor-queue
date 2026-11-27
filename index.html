@@ -27,19 +27,37 @@
   .foot { margin-top:28px; font-size:14px; }
   .note { color:var(--dim); font-size:12px; margin-top:12px; }
   .views { display:flex; gap:6px; margin-bottom:22px; }
-  .views button, .range button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:8px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
-  .views button.on, .range button.on { color:var(--fg); border-color:#4a4e58; background:var(--card); }
-  .range { display:flex; gap:6px; margin-bottom:18px; }
-  .ed { margin-bottom:26px; }
-  .ed h2 { display:flex; justify-content:space-between; font-size:15px; margin:0 0 6px; padding-bottom:8px; border-bottom:1px solid var(--line); }
-  .ed h2 span { font-variant-numeric:tabular-nums; }
-  .it { display:grid; grid-template-columns:172px 56px 1fr auto; gap:10px; padding:7px 0; font-size:14px; border-bottom:1px solid #1a1c21; align-items:baseline; }
-  .it .t { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .it .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .it .s { color:var(--dim); font-size:12px; white-space:nowrap; }
+  .views button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:8px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  .views button.on { color:var(--fg); border-color:#4a4e58; background:var(--card); }
+  .range { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:24px; }
+  .range button { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  .range button.on { background:var(--acc); color:#06210f; border-color:var(--acc); font-weight:600; }
+  .pick { position:relative; }
+  .cal { position:absolute; z-index:5; top:calc(100% + 8px); left:0; width:292px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; box-shadow:0 12px 40px rgba(0,0,0,.5); }
+  .cal .hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; font-size:14px; font-weight:600; }
+  .cal .hd button { padding:4px 10px; }
+  .cal .grid { display:grid; grid-template-columns:repeat(7, 1fr); row-gap:2px; }
+  .cal .dow { color:var(--dim); font-size:11px; text-align:center; padding:4px 0; }
+  .cal .d { background:none; border:0; border-radius:0; padding:8px 0; font-size:13px; text-align:center; color:var(--fg); cursor:pointer; }
+  .cal .d:hover { background:var(--line); }
+  .cal .d.fut { color:#4a4e58; cursor:default; background:none; }
+  .cal .d.in { background:rgba(74,222,128,.18); }
+  .cal .d.end { background:var(--acc); color:#06210f; font-weight:700; border-radius:6px; }
+  .cal .hint { color:var(--dim); font-size:12px; margin-top:10px; }
+  #otab th:first-child, #otab td:first-child { width:52%; }
+  tr.ed { cursor:pointer; }
+  tr.ed:hover td { background:var(--card); }
+  tr.ed td:first-child::before { content:"▸"; color:var(--dim); display:inline-block; width:18px; }
+  tr.ed.open td:first-child::before { content:"▾"; }
+  tr.total td { border-top:2px solid var(--fg); }
+  tr.total td:first-child { padding-left:18px; }
+  tr.it td { font-size:13px; font-weight:400; padding:6px 12px; border-top:0; color:var(--dim); }
+  tr.it td:first-child { padding-left:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+  tr.it td:first-child a { font-size:13px; margin-right:8px; }
+  tr.it td:first-child span { color:var(--fg); }
   .tag { color:#c4b5fd; font-size:11px; margin-left:6px; }
-  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; }
-    .it { grid-template-columns:128px 48px 1fr; font-size:13px; } .it .s { display:none; } }
+  @media (max-width:520px) { .cal { left:auto; right:0; } }
+  @media (max-width:520px) { td { font-size:17px; padding:12px 6px; } th { padding:0 6px 10px; font-size:10px; } }
 </style>
 </head>
 <body>
@@ -59,10 +77,20 @@
   </section>
 
   <section id="vOutput" hidden>
-    <div class="range"><button data-r="7">7 days</button><button data-r="30">30 days</button><button data-r="all">All</button></div>
+    <div class="range" id="range">
+      <button data-p="week">This week</button><button data-p="7">7 days</button><button data-p="14">14 days</button><button data-p="30">30 days</button>
+      <button data-p="month">This month</button><button data-p="last">Last month</button>
+      <div class="pick">
+        <button id="pickBtn" aria-haspopup="dialog">Pick dates</button>
+        <div class="cal" id="cal" hidden></div>
+      </div>
+    </div>
     <div class="warn" id="owarn" hidden></div>
-    <div id="out"></div>
-    <div class="note">Finished = first move out of In Progress (Pending review or later), credited to whoever had it then. Times are your local time.</div>
+    <table id="otab">
+      <thead><tr><th></th><th>Finished</th><th>Bounties</th></tr></thead>
+      <tbody id="orows"></tbody>
+    </table>
+    <div class="note">Finished = first move out of In Progress (Pending review or later), same as the Master OS, credited to whoever had the batch then. Bounties = batches where the editor is their own strategist. Click an editor for their batches with times (ET).</div>
   </section>
   <div class="foot"><a id="asana" href="#" target="_blank" rel="noopener">Open the roadmap in Asana →</a></div>
 </main>
@@ -116,42 +144,115 @@ function draw(D) {
   drawOut(D);
 }
 
-// Output view: every finished batch, by editor, newest first.
-var VIEW = /output/.test(location.hash) ? 'output' : 'queue', RANGE = '7', LAST = null;
-var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function stamp(iso) {
-  var d = new Date(iso), h = d.getHours(), m = d.getMinutes();
-  return WD[d.getDay()] + ' ' + MO[d.getMonth()] + ' ' + d.getDate() + ' · ' + ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m + (h < 12 ? ' am' : ' pm');
+// Output view: finished batches per editor for a date range (same ranges as the Master OS).
+var VIEW = /output/.test(location.hash) ? 'output' : 'queue', LAST = null, R = { from: '', to: '', preset: 'month' }, OPEN = {};
+var TZ = 'America/New_York';
+function etDay(ms) { return new Date(ms).toLocaleDateString('en-CA', { timeZone: TZ }); }
+function etTime(iso) {
+  return new Date(iso).toLocaleString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+function md(s) { return new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function shift(s, d) { var t = new Date(s + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); }
+function preset(p) {
+  var t = etDay(Date.now());
+  if (p === 'week') return [shift(t, -((new Date(t + 'T12:00:00Z').getUTCDay() + 6) % 7)), t];
+  if (p === 'month') return [t.slice(0, 8) + '01', t];
+  if (p === 'last') { var e = shift(t.slice(0, 8) + '01', -1); return [e.slice(0, 8) + '01', e]; }
+  return [shift(t, -(+p - 1)), t];
+}
+function n(v) { return v ? String(v) : '<span class="zero">0</span>'; }
 function drawOut(D) {
   LAST = D;
-  var list = D.out || [], now = Date.now();
+  if (!R.from || R.preset) { var r0 = preset(R.preset || 'month'); R.from = r0[0]; R.to = r0[1]; }
   var w = document.getElementById('owarn');
   w.hidden = !(D.outPending || !D.out);
   w.textContent = !D.out ? 'Output data is not in yet. It appears on the next refresh.' :
-    D.outPending ? 'Still reading history for ' + D.outPending + ' finished batches, so the list is incomplete. Clears on the next refresh.' : '';
-  var from = RANGE === 'all' ? 0 : now - (+RANGE) * DAY;
-  var by = {};
-  list.forEach(function (r) {
-    if (Date.parse(r.f) < from) return;
-    (by[r.w] || (by[r.w] = [])).push(r);
+    D.outPending ? 'Still reading history for ' + D.outPending + ' finished batches, so counts are too low until this clears.' : '';
+  var by = {}, T = { f: 0, x: 0 };
+  (D.out || []).forEach(function (r) {
+    var d = etDay(Date.parse(r.f));
+    if (d < R.from || d > R.to) return;
+    var E = by[r.w] || (by[r.w] = { name: r.w, f: 0, x: 0, list: [] });
+    if (r.x) { E.x++; T.x++; } else { E.f++; T.f++; }
+    E.list.push(r);
   });
-  var names = Object.keys(by).sort(function (a, b) { return by[b].length - by[a].length || (a < b ? -1 : 1); });
-  var base = D.asana.replace(/\/$/, '') + '/';
-  var total = names.reduce(function (n, k) { return n + by[k].length; }, 0);
-  document.getElementById('out').innerHTML = (names.length ? '' : '<div class="note">Nothing finished in this range.</div>') +
-    names.map(function (k) {
-      return '<div class="ed"><h2>' + esc(k) + '<span>' + by[k].length + '</span></h2>' + by[k].map(function (r) {
-        return '<div class="it"><span class="t">' + (r.c ? 'no history' : stamp(r.f)) + '</span>' +
-          '<a href="' + base + r.g + '" target="_blank" rel="noopener">#' + esc(r.b) + '</a>' +
-          '<span class="nm">' + esc(r.n) + (r.x ? '<span class="tag">bounty</span>' : '') + '</span>' +
-          '<span class="s">' + esc(r.st) + '</span></div>';
-      }).join('') + '</div>';
-    }).join('');
-  document.querySelectorAll('.range button').forEach(function (b) { b.classList.toggle('on', b.dataset.r === RANGE); });
-  if (VIEW === 'output') document.getElementById('sub').innerHTML = total + ' finished ' +
-    (RANGE === 'all' ? 'all time' : 'in the last ' + RANGE + ' days') + ' · ' + document.getElementById('sub').innerHTML.replace(/^.*?·\s*/, '');
+  var eds = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) {
+    return b.f - a.f || b.x - a.x || (a.name < b.name ? -1 : 1);
+  });
+  var base = D.asana.replace(/\/$/, '') + '/', h = '';
+  eds.forEach(function (E) {
+    var o = !!OPEN[E.name];
+    h += '<tr class="ed' + (o ? ' open' : '') + '" data-n="' + esc(E.name) + '"><td>' + esc(E.name) + '</td><td>' + n(E.f) + '</td><td>' + n(E.x) + '</td></tr>';
+    if (o) E.list.forEach(function (r) {
+      h += '<tr class="it"><td><a href="' + base + r.g + '" target="_blank" rel="noopener">#' + esc(r.b) + '</a><span>' + esc(r.n) + '</span>' +
+           (r.x ? '<span class="tag">bounty</span>' : '') + '</td><td colspan="2">' + (r.c ? 'no history' : etTime(r.f)) + ' · ' + esc(r.st) + '</td></tr>';
+    });
+  });
+  if (!eds.length) h += '<tr><td colspan="3" class="zero" style="font-size:14px;font-weight:400">Nothing finished in this range.</td></tr>';
+  h += '<tr class="total"><td>Total</td><td>' + n(T.f) + '</td><td>' + n(T.x) + '</td></tr>';
+  document.getElementById('orows').innerHTML = h;
+  [].forEach.call(document.querySelectorAll('#range button[data-p]'), function (b) { b.className = b.getAttribute('data-p') === R.preset ? 'on' : ''; });
+  var pb = document.getElementById('pickBtn');
+  pb.textContent = R.preset ? 'Pick dates' : md(R.from) + ' – ' + md(R.to); pb.className = R.preset ? '' : 'on';
+  if (VIEW === 'output') {
+    var mins = Math.round((Date.now() - Date.parse(D.at)) / 60000);
+    document.getElementById('sub').innerHTML = md(R.from) + ' – ' + md(R.to) + ' · <span class="' + (mins > 30 ? 'stale' : '') +
+      '">updated ' + (mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + 'h ago') + '</span>';
+  }
 }
+function setRange(f, t, p) { if (f > t) { var x = f; f = t; t = x; } R = { from: f, to: t, preset: p || '' }; if (LAST) draw(LAST); }
+document.getElementById('range').addEventListener('click', function (e) {
+  var p = e.target.getAttribute && e.target.getAttribute('data-p'); if (!p) return;
+  calOpen(false); var r = preset(p); setRange(r[0], r[1], p);
+});
+document.getElementById('orows').addEventListener('click', function (e) {
+  var tr = e.target.closest('tr.ed'); if (!tr) return;
+  var k = tr.getAttribute('data-n'); OPEN[k] = !OPEN[k]; if (LAST) draw(LAST);
+});
+/* One calendar, as on the Master OS: click the first day, then the last day. */
+var C = { ym: '', a: '', hover: '' };
+function calDraw() {
+  var today = etDay(Date.now()), y = +C.ym.slice(0, 4), m = +C.ym.slice(5, 7);
+  var first = new Date(Date.UTC(y, m - 1, 1)), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  var lead = (first.getUTCDay() + 6) % 7;
+  var lo = C.a || R.from, hi = C.a ? (C.hover || C.a) : R.to;
+  if (lo > hi) { var x = lo; lo = hi; hi = x; }
+  var h = '<div class="hd"><button data-nav="-1" aria-label="Previous month">‹</button><span>' +
+          first.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) +
+          '</span><button data-nav="1" aria-label="Next month">›</button></div><div class="grid">';
+  ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (d) { h += '<div class="dow">' + d + '</div>'; });
+  for (var i = 0; i < lead; i++) h += '<div></div>';
+  for (var d = 1; d <= days; d++) {
+    var s = C.ym + '-' + (d < 10 ? '0' : '') + d, cls = 'd';
+    if (s > today) cls += ' fut';
+    else if (s === lo || s === hi) cls += ' end';
+    else if (s > lo && s < hi) cls += ' in';
+    h += '<button class="' + cls + '" data-d="' + s + '">' + d + '</button>';
+  }
+  h += '</div><div class="hint">' + (C.a ? 'Now click the last day' : 'Click the first day') + '</div>';
+  document.getElementById('cal').innerHTML = h;
+}
+function calOpen(show) {
+  var el = document.getElementById('cal'); el.hidden = !show;
+  if (show) { C = { ym: R.to.slice(0, 7), a: '', hover: '' }; calDraw(); }
+}
+document.getElementById('pickBtn').addEventListener('click', function (e) {
+  e.stopPropagation(); if (LAST) calOpen(document.getElementById('cal').hidden);
+});
+document.getElementById('cal').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var nav = e.target.getAttribute('data-nav'), d = e.target.getAttribute('data-d');
+  if (nav) { var t = new Date(C.ym + '-15T12:00:00Z'); t.setUTCMonth(t.getUTCMonth() + (+nav)); C.ym = t.toISOString().slice(0, 7); calDraw(); return; }
+  if (!d || d > etDay(Date.now())) return;
+  if (!C.a) { C.a = d; C.hover = d; calDraw(); return; }
+  var a = C.a; calOpen(false); setRange(a, d, '');
+});
+document.getElementById('cal').addEventListener('mouseover', function (e) {
+  var d = e.target.getAttribute && e.target.getAttribute('data-d');
+  if (C.a && d && d <= etDay(Date.now()) && d !== C.hover) { C.hover = d; calDraw(); }
+});
+document.addEventListener('click', function () { calOpen(false); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') calOpen(false); });
 function setView(v) {
   VIEW = v;
   document.getElementById('vQueue').hidden = v !== 'queue';
@@ -161,7 +262,6 @@ function setView(v) {
   if (LAST) draw(LAST);
 }
 document.querySelectorAll('.views button').forEach(function (b) { b.onclick = function () { setView(b.dataset.v); }; });
-document.querySelectorAll('.range button').forEach(function (b) { b.onclick = function () { RANGE = b.dataset.r; if (LAST) draw(LAST); }; });
 setView(VIEW);
 
 function load() {
